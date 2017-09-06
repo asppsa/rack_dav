@@ -1,5 +1,5 @@
 require 'digest'
-require 'ffi-xattr'
+require 'moneta'
 
 module RackDAV
 
@@ -69,23 +69,25 @@ module RackDAV
     def set_custom_property(name, value)
       if value.nil? || value.empty?
         begin
-          xattr.remove("rack_dav:#{name}")
+          store.remove name
         rescue Errno::ENOATTR
           # If the attribute being deleted doesn't exist, just do nothing
         end
       else
-        xattr["rack_dav:#{name}"] = value
+        store.store name, value
       end
     end
 
     def get_custom_property(name)
-      value = xattr["rack_dav:#{name}"]
+      value = store.load name
       raise HTTPStatus::NotFound if value.nil?
       value
     end
 
     def list_custom_properties
-      xattr.list.select { |a| a.start_with?('rack_dav') }.map { |a| a.sub(/^rack_dav:/, '') }
+      prefix = store.instance_variable_get(:@prefix)
+      keys = store.adapter.backend.keys.select{ |key| key.start_with? prefix }
+      keys.map{ |key| key[store.prefix.length..-1] }
     end
 
     # HTTP GET request.
@@ -187,15 +189,15 @@ module RackDAV
       end
 
       def file_path
-        root + '/' + path
+        File.join(root, path)
       end
 
       def stat
         @stat ||= File.stat(file_path)
       end
 
-      def xattr
-        @xattr ||= Xattr.new(file_path)
+      def store
+        @store ||= Moneta.new(@options[:moneta], @options[:moneta_options].call(file_path))
       end
 
       def content_md5_pass?(env)

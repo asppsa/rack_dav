@@ -17,7 +17,9 @@ module RackDAV
     def initialize(options = {})
       @options = {
         :resource_class => FileResource,
-        :root => Dir.pwd
+        :root => Dir.pwd,
+        :moneta => :Redis,
+        :moneta_options => lambda{ |path| {prefix: "rack_dav:#{path}::"} }
       }.merge(options)
     end
 
